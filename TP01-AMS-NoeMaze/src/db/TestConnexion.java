@@ -1,9 +1,9 @@
 package db;
 
 import java.sql.Connection;
-import data.Produit;
+import java.sql.Date;
+import data.Animal;
 import data.Gestion;
-import db.Connexion;
 
 public class TestConnexion {
     public static void main(String[] args) {
@@ -17,17 +17,12 @@ public class TestConnexion {
 
         try {
             Gestion g = new Gestion(conn);
-            g.execute("DROP TABLE IF EXISTS produit");
-            g.createTableProduct();
-            Produit p1 = new Produit(5, "Table", "Meuble bois", "Maison", 49.99);
-            Produit p2 = new Produit(3, "Chaise", "Assise bois", "Maison", 19.99);
-            Produit p3 = new Produit(5, "Table", "Table en bois", "Maison", 30.0);
-            g.insert(p1, "produit");
-            g.insert(p2, "produit");
-            g.insert(p3, "produit");
-            System.out.println("Produits insérés avec succès.");
-            System.out.println("\nContenu de la table produit :");
-            g.displayTable("produit");
+            System.out.println("Tentative d'insertion d'un animal de test...");
+            Animal a = new Animal("TestRex", "Chien", "TEST1234", "Labrador", 2020, Date.valueOf("2024-01-01"), "En attente");
+            g.insert(a, "animal");
+            System.out.println("Animal inséré avec succès ! ID généré = " + a.getId());
+            System.out.println("\nContenu de la table animal :");
+            g.displayTable("animal");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -36,4 +31,3 @@ public class TestConnexion {
         }
     }
 }
-

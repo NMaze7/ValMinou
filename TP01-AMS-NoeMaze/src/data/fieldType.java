@@ -1,5 +1,5 @@
 package data;
 
 public enum fieldType {
-	NUMERIC, VARCHAR, FLOAT8, INT4;
+	NUMERIC, VARCHAR, FLOAT8, INT4, DATE, TIME, BOOL;
 }

@@ -1,7 +1,6 @@
 package data;
 
 import java.sql.*;
-
 import java.util.HashMap;
 
 public class Gestion {
@@ -12,46 +11,47 @@ public class Gestion {
         this.conn = conn;
     }
 
-    public void createTableProduct() throws SQLException {
-        String query = "CREATE TABLE IF NOT EXISTS produit (" +
-                       "id SERIAL PRIMARY KEY, " +
-                       "lot INT, " +
-                       "nom VARCHAR(100), " +
-                       "description TEXT, " +
-                       "categorie VARCHAR(50), " +
-                       "prix FLOAT8" +
-                       ")";
-        execute(query);
-    }
-
-    public void execute(String query) throws SQLException {
-        Statement stmt = conn.createStatement();
-        stmt.executeUpdate(query);
-        stmt.close();
-    }
-
+    /**
+     * Récupère la structure d'une table SQL (Nom colonne -> Type)
+     */
     public HashMap<String, fieldType> structTable(String table, boolean display) throws SQLException {
         HashMap<String, fieldType> structure = new HashMap<>();
         DatabaseMetaData meta = conn.getMetaData();
-        ResultSet rs = meta.getColumns(null, null, table, null);
+        ResultSet rs = meta.getColumns(null, null, table.toLowerCase(), null);
 
         while (rs.next()) {
             String column = rs.getString("COLUMN_NAME");
-            String type = rs.getString("TYPE_NAME");
+            String type = rs.getString("TYPE_NAME").toUpperCase();
             fieldType ft;
 
-            switch (type.toUpperCase()) {
+
+            switch (type) {
                 case "INT4":
                 case "INTEGER":
+                case "SERIAL":
                     ft = fieldType.INT4;
                     break;
                 case "FLOAT8":
                 case "DOUBLE PRECISION":
+                case "NUMERIC":
+                case "DECIMAL":
                     ft = fieldType.FLOAT8;
                     break;
                 case "VARCHAR":
                 case "TEXT":
+                case "CHAR":
                     ft = fieldType.VARCHAR;
+                    break;
+                case "DATE":
+                    ft = fieldType.DATE;
+                    break;
+                case "BOOL":
+                case "BOOLEAN":
+                case "BIT":
+                    ft = fieldType.BOOL;
+                    break;
+                case "TIME":
+                    ft = fieldType.TIME;
                     break;
                 default:
                     ft = fieldType.VARCHAR;
@@ -60,67 +60,92 @@ public class Gestion {
             structure.put(column, ft);
 
             if (display) {
-                System.out.println(column + " : " + type);
+                System.out.println(column + " : " + type + " -> " + ft);
             }
         }
         rs.close();
         return structure;
     }
 
-    public void displayTable(String table) throws SQLException {
-        String sql = "SELECT * FROM " + table;
-        PreparedStatement pstmt = conn.prepareStatement(sql);
-        ResultSet rs = pstmt.executeQuery();
-        ResultSetMetaData rsmd = rs.getMetaData();
-        int columns = rsmd.getColumnCount();
-
-        while (rs.next()) {
-            for (int i = 1; i <= columns; i++) {
-                System.out.print(rsmd.getColumnName(i) + "=" + rs.getObject(i));
-                if (i < columns) System.out.print(", ");
-            }
-            System.out.println();
-        }
-
-        rs.close();
-        pstmt.close();
-    }
-
-    public void insert(IData data, String table) throws SQLException {
+    /**
+     * Méthode générique pour insérer n'importe quelle entité Animal, Box, etc...
+     */
+    public void insert(Entity data, String table) throws SQLException {
         data.getStruct();
         HashMap<String, fieldType> tableStruct = structTable(table, false);
-
         if (!data.check(tableStruct)) {
-            throw new SQLException("La structure de l'instance ne correspond pas à la table " + table);
+            throw new SQLException("Erreur : La structure de l'objet Java ne correspond pas à la table SQL '" + table + "'.");
         }
 
-        if (data instanceof Produit p) {
-            // Vérification doublon sur nom+lot
-            String checkSql = "SELECT id, prix, description FROM " + table +
-                              " WHERE nom='" + p.getNom() + "' AND lot=" + p.getLot();
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(checkSql);
 
-            if (rs.next()) {
-                int oldId = rs.getInt("id");
-                double newPrix = rs.getDouble("prix") + p.getPrix();
-                String newDesc = rs.getString("description") + " " + p.getDescription();
-                String updateSql = "UPDATE " + table +
-                                   " SET prix=" + newPrix + ", description='" + newDesc + "' WHERE id=" + oldId;
-                stmt.executeUpdate(updateSql);
-            } else {
-                String insertSql = "INSERT INTO " + table + " (lot, nom, description, categorie, prix) VALUES " +
-                                   "(" + p.getLot() + ", '" + p.getNom() + "', '" +
-                                   p.getDescription() + "', '" + p.getCategorie() + "', " +
-                                   p.getPrix() + ")";
-                stmt.executeUpdate(insertSql, Statement.RETURN_GENERATED_KEYS);
-                ResultSet keys = stmt.getGeneratedKeys();
-                if (keys.next()) p.setId(keys.getInt(1));
-                keys.close();
+        String valuesPart = data.getValues();
+        if (valuesPart.startsWith("(")) {
+            valuesPart = valuesPart.substring(1); // Retire le '('
+        }
+
+        String query = "INSERT INTO " + table + " VALUES (DEFAULT, " + valuesPart;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+            int affectedRows = pstmt.executeUpdate();
+
+            if (affectedRows > 0) {
+                try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        data.setId(keys.getInt(1));
+                    }
+                }
             }
-            rs.close();
-            stmt.close();
         }
     }
-}
 
+    /**
+     * Méthode utilitaire pour exécuter une requête SQL simple : UPDATE, DELETE...
+     */
+    public void execute(String query) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(query);
+        }
+    }
+
+    /**
+     * Affiche le contenu brut d'une table
+     */
+    public void displayTable(String table) throws SQLException {
+        String sql = "SELECT * FROM " + table;
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            ResultSetMetaData rsmd = rs.getMetaData();
+            int columns = rsmd.getColumnCount();
+            while (rs.next()) {
+                for (int i = 1; i <= columns; i++) {
+                    System.out.print(rsmd.getColumnName(i) + "=" + rs.getObject(i));
+                    if (i < columns) System.out.print(", ");
+                }
+                System.out.println();
+            }
+        }
+    }
+
+
+    /**
+     * Met à jour une entité en base de données.
+     */
+    public void update(Entity data, String table) throws SQLException {
+        String pkName = data.getPkName();
+        String setClause = data.getUpdateClause();
+        int id = data.getId();
+        String query = "UPDATE " + table + " SET " + setClause + " WHERE " + pkName + "=" + id;
+        execute(query);
+    }
+
+
+    /**
+     * Exécute une requête SELECT et retourne le résultat brut (ResultSet).
+     * Utile pour recharger les objets depuis la base.
+     */
+    public ResultSet select(String query) throws SQLException {
+        Statement stmt = conn.createStatement();
+        return stmt.executeQuery(query);
+    }
+
+}
