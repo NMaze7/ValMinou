@@ -56,7 +56,7 @@ public abstract class Entity implements IData, Serializable {
 
     /**
      * Méthode abstraite : chaque classe fille (Animal, Box...) devra
-     * définir elle-meme comment elle remplit sa structure (getStruct).
+     * définir elle-meme comment elle remplit sa structure (getStruct)
      */
     @Override
     public abstract void getStruct();

@@ -2,6 +2,13 @@ package data;
 
 import java.sql.Date;
 
+
+/**
+ * Représente un animal pris en charge par la SPA.
+ * Cette classe correspond à la table animal de la base de données
+ * Elle contient les informations d'identité, de statut (adopté/en attente)
+ * ainsi que les critères de compatibilité (sociabilité)
+ */
 public class Animal extends Entity {
     private String nom;
     private String type_animal; // 'Chien' ou 'Chat'
@@ -18,6 +25,20 @@ public class Animal extends Entity {
 
 
 
+
+    /**
+     * Constructeur principal pour l'enregistrement d'un nouvel animal
+     * Note : Les champs de sociabilité (ok_chiens, ok_chats...) et l'ID de famille
+     * sont initialisés à null par défaut. Ils doivent être définis via les setters.
+     *
+     * @param nom                Le nom de l'animal.
+     * @param type_animal        Le type (ex: "Chien", "Chat").
+     * @param num_identification Numéro de puce ou tatouage.
+     * @param race               La race de l'animal.
+     * @param annee_naissance    L'année de naissance estimée ou réelle.
+     * @param date_arrivee       La date d'entrée au refuge.
+     * @param statut             Le statut initial (ex: "En attente").
+     */
     public Animal(String nom, String type_animal, String num_identification, String race, int annee_naissance, Date date_arrivee, String statut) {
         super();
         this.nom = nom;
@@ -82,6 +103,12 @@ public class Animal extends Entity {
 
 
 
+
+    /**
+     * Définit la structure de mappage de l'animal pour l'insertion SQL
+     * Cette méthode remplit la map avec les types SQL attendus pour chaque colonne
+     * et génère la chaîne values formatée pour une requête INSERT
+     */
     @Override
     public void getStruct() {
         map.put("nom", fieldType.VARCHAR);
@@ -105,11 +132,22 @@ public class Animal extends Entity {
     }
 
 
+    /**
+     * Retourne le nom de la colonne servant de clé primaire dans la table SQL
+     * @return "id_animal"
+     */
     @Override
     public String getPkName() {
         return "id_animal";
     }
 
+
+
+    /**
+     * Construit une chaîne de caractères assignant chaque colonne à sa valeur actuelle
+     * dans l'objet Java (ex: "nom='oslo', type_animal='Chien'...")
+     * @return La clause de mise à jour SQL complète.
+     */
     @Override
     public String getUpdateClause() {
         return "nom='" + nom + "', " +

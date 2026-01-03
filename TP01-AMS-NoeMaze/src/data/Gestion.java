@@ -3,16 +3,35 @@ package data;
 import java.sql.*;
 import java.util.HashMap;
 
+
+
+/**
+ * Cette classe encapsule la connexion JDBC et fournit des méthodes utilitaires
+ * pour effectuer les opérations CRUD (Create, Read, Update, Delete) de manière générique
+ * Elle permet notamment de vérifier la correspondance structurelle entre les objets Java
+ * (héritant de Entity et les tables SQL avant toute insertion
+ */
 public class Gestion {
 
     private Connection conn;
 
+
+    /**
+     * Initialise le gestionnaire avec une connexion active
+     * @param conn La connexion JDBC établie à la base de données
+     */
     public Gestion(Connection conn) {
         this.conn = conn;
     }
 
     /**
-     * Récupère la structure d'une table SQL (Nom colonne -> Type)
+     * Cette méthode interroge la base pour connaître les colonnes et leurs types,
+     * puis les convertit vers l'énumération fieldType pour permettre
+     * la comparaison avec les objets Java
+     * @param table   Le nom de la table SQL à analyser
+     * @param display Si true, affiche le résultat de l'analyse dans la console
+     * @return Une Map associant le nom de la colonne à son type standardisé
+     * @throws SQLException Si une erreur survient
      */
     public HashMap<String, fieldType> structTable(String table, boolean display) throws SQLException {
         HashMap<String, fieldType> structure = new HashMap<>();
@@ -68,27 +87,28 @@ public class Gestion {
     }
 
     /**
-     * Méthode générique pour insérer n'importe quelle entité Animal, Box, etc...
+     * La méthode effectue les étapes suivantes :
+     * Récupère la structure attendue par l'objet Java (via getStruct)
+     * Récupère la structure réelle de la table SQL (via structTable)
+     * Compare les deux (via check). Si discordance, affiche une erreur détaillée et stop
+     * Construit la requête INSERT SQL
+     * Exécute l'insertion et récupère la clé primaire générée (SERIAL) pour mettre à jour l'objet
+     * @param data  L'entité à insérer (doit hériter de Entity)
+     * @param table Le nom de la table cible
+     * @throws SQLException Si la structure ne correspond pas ou si l'insertion échoue
      */
     public void insert(Entity data, String table) throws SQLException {
-        data.getStruct(); // Remplit la map Java
-        HashMap<String, fieldType> tableStruct = structTable(table, false); // Récupère la map SQL
-
-        // --- DÉBUT DU BLOC DE DÉBOGAGE ---
+        data.getStruct();
+        HashMap<String, fieldType> tableStruct = structTable(table, false);
         if (!data.check(tableStruct)) {
-            // On cherche manuellement l'erreur pour l'afficher à l'utilisateur
             System.err.println(">>> DÉTAIL DE L'ERREUR DE STRUCTURE pour la table '" + table + "' <<<");
-
             for (String key : data.getMap().keySet()) {
-                // 1. Vérifier si la colonne existe
                 if (!tableStruct.containsKey(key)) {
                     System.err.println("   [ERREUR] La colonne Java '" + key + "' n'existe pas dans la table SQL.");
                     continue;
                 }
-                // 2. Vérifier si le type correspond
                 fieldType typeJava = data.getMap().get(key);
                 fieldType typeSQL = tableStruct.get(key);
-
                 if (typeJava != typeSQL) {
                     System.err.println("   [ERREUR] Colonne '" + key + "' : Java attend " + typeJava + " mais SQL est " + typeSQL);
                 } else {
@@ -97,15 +117,11 @@ public class Gestion {
             }
             throw new SQLException("Erreur : La structure de l'objet Java ne correspond pas à la table SQL '" + table + "'. (Voir détails ci-dessus)");
         }
-        // --- FIN DU BLOC DE DÉBOGAGE ---
-
         String valuesPart = data.getValues();
         if (valuesPart.startsWith("(")) {
             valuesPart = valuesPart.substring(1);
         }
-
         String query = "INSERT INTO " + table + " VALUES (DEFAULT, " + valuesPart;
-
         try (PreparedStatement pstmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0) {
@@ -149,7 +165,7 @@ public class Gestion {
 
 
     /**
-     * Met à jour une entité en base de données.
+     * Met à jour une entité en base de données
      */
     public void update(Entity data, String table) throws SQLException {
         String pkName = data.getPkName();
@@ -161,7 +177,7 @@ public class Gestion {
 
 
     /**
-     * Exécute une requête SELECT et retourne le résultat brut (ResultSet).
+     * Exécute une requête SELECT et retourne le résultat
      * Utile pour recharger les objets depuis la base.
      */
     public ResultSet select(String query) throws SQLException {

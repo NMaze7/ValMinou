@@ -13,6 +13,19 @@ import exception.DonneeInvalideExceptions;
 import exception.ElementIntrouvableException;
 import exception.SpaException;
 
+
+
+
+/**
+ * Service métier principal de l'application SPA Val Minou
+ * Cette classe joue le rôle de "Contrôleur" dans l'architecture de l'application
+ * Elle a deux responsabilités majeures :
+ * Gestion du Cache : Elle maintient en mémoire vive (RAM) des listes d'objets (Animaux, Box, etc.)
+ * pour permettre un accès rapide et une manipulation objet aisée
+ * Logique Métier : Elle contient les règles de gestion (ex: vérifier qu'un animal existe avant de le soigner,
+ * clôturer un emplacement précédent lors d'un déménagement)
+ * Elle délègue les opérations SQL brutes à la classe Gestion
+ */
 public class SpaService {
 
     private Gestion gestion;
@@ -147,7 +160,6 @@ public class SpaService {
         cacheHistorique.clear();
         ResultSet rs = gestion.select("SELECT * FROM historique_emplacement");
         while (rs.next()) {
-            // Lecture sécurisée des clés étrangères (Int vs Null)
             int boxIdTemp = rs.getInt("id_box");
             Integer boxId = rs.wasNull() ? null : boxIdTemp;
 
@@ -310,19 +322,14 @@ public class SpaService {
     }
 
     // ==========================================================
-    // MÉTIER : HISTORIQUE (Avec Logique Temporelle)
+    // MÉTIER : HISTORIQUE
     // ==========================================================
 
     public void ajouterHistorique(HistoriqueEmplacement h) throws SpaException, SQLException {
-        // 1. Vérifications
         recupererAnimal(h.getIdAnimal());
         if (h.getDateDebut() == null) throw new DonneeInvalideExceptions("Date de début obligatoire.");
         if (h.getIdBox() == null && h.getIdFamille() == null) throw new DonneeInvalideExceptions("Lieu obligatoire.");
-
-        // 2. LOGIQUE PROF : Clôturer l'ancien emplacement avant d'ouvrir le nouveau
         cloturerDeplacementPrecedent(h.getIdAnimal(), h.getDateDebut());
-
-        // 3. Insertion et Mise à jour Cache
         gestion.insert(h, "historique_emplacement");
         cacheHistorique.add(h);
 
@@ -337,15 +344,10 @@ public class SpaService {
         for (HistoriqueEmplacement h : cacheHistorique) {
             // Si c'est le même animal ET que l'emplacement n'est pas fini
             if (h.getIdAnimal() == idAnimal && h.getDateFin() == null) {
-
-                // Mise à jour Objet Java
                 h.setDateFin(dateCloture);
-
-                // Mise à jour SQL (Update manuel ciblé)
                 String sql = "UPDATE historique_emplacement SET date_fin = '" + dateCloture + "' " +
                         "WHERE id_historique = " + h.getId();
                 gestion.execute(sql);
-
                 System.out.println(">> Ancien emplacement clôturé automatiquement.");
                 return; // On a trouvé, on s'arrête
             }
@@ -368,9 +370,7 @@ public class SpaService {
 
 
     public void ajouterSoin(PrescriptionSoin soin) throws SpaException, SQLException {
-        // Vérifie que l'animal existe
         recupererAnimal(soin.getIdAnimal());
-
         if (soin.getDescriptionSoin() == null || soin.getDescriptionSoin().isEmpty()) {
             throw new DonneeInvalideExceptions("La description du soin est obligatoire.");
         }
@@ -457,21 +457,19 @@ public class SpaService {
     }
 
     public void planifierActivite(PlanningActivite p) throws SQLException {
-        // Vérifs basiques
         boolean creneauExiste = cacheCreneaux.stream().anyMatch(c -> c.getId() == p.getIdCreneau());
         if(!creneauExiste) throw new SQLException("Créneau introuvable");
-
         gestion.insert(p, "planning_activite");
         cachePlannings.add(p);
         System.out.println("Activité planifiée ID: " + p.getId());
     }
 
     /**
-     * Méthode spéciale pour la table de liaison Many-to-Many.
-     * On utilise du SQL brut car pas de clé primaire simple.
+     * Méthode spéciale pour la table de liaison
+     * On utilise du SQL brut car pas de clé primaire simple
      */
     public void ajouterAnimalAuPlanning(int idPlanning, int idAnimal) throws SQLException, SpaException {
-        recupererAnimal(idAnimal); // Lève une exception si pas trouvé
+        recupererAnimal(idAnimal);
         String sql = "INSERT INTO participation_animal_activite (id_planning, id_animal) " +
                 "VALUES (" + idPlanning + ", " + idAnimal + ")";
         gestion.execute(sql);
@@ -481,13 +479,10 @@ public class SpaService {
     public void afficherPlanningComplet() {
         System.out.println("--- PLANNING ---");
         for (PlanningActivite p : cachePlannings) {
-            // On retrouve les infos liées pour l'affichage (Jointure en mémoire)
             String activite = "Inconnue";
             for(TypeActivite t : cacheTypesActivite) if(t.getId() == p.getIdTypeActivite()) activite = t.getLibelle();
-
             String date = "Inconnue";
             for(Creneau c : cacheCreneaux) if(c.getId() == p.getIdCreneau()) date = c.getDateCreneau().toString();
-
             System.out.println("Plan #" + p.getId() + " : " + activite + " le " + date +
                     " (Bénévole: " + p.getIdBenevole() + ")");
         }
