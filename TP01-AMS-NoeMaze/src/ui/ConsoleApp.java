@@ -15,43 +15,29 @@ import exception.SpaException;
 
 public class ConsoleApp {
 
-    // On utilise BufferedReader au lieu de Scanner pour une lecture plus stable
     private static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
     public static void main(String[] args) {
         System.out.println("=== Démarrage de l'application SPA Val Minou ===");
 
-        // 1. Connexion à la base
         Connection conn = Connexion.connectR();
-        if (conn == null) {
-            System.err.println("Impossible de se connecter à la base de données. Fin du programme.");
-            return;
-        }
+        if (conn == null) return;
 
         try {
-            // 2. Initialisation des services
             Gestion gestion = new Gestion(conn);
             SpaService service = new SpaService(gestion);
 
-            // 3. Chargement initial des données depuis la BDD (Correction de l'erreur ici)
+            // Chargement des données existantes
             try {
                 service.chargerDonneesDepuisBDD();
             } catch (SQLException e) {
-                System.err.println(">> Attention : Impossible de charger les animaux existants (" + e.getMessage() + ")");
+                System.err.println(">> Info : Base vide ou erreur de chargement (" + e.getMessage() + ")");
             }
 
-            // 4. Boucle principale
             boolean running = true;
             while (running) {
                 afficherMenu();
-
-                String choix = "";
-                try {
-                    choix = br.readLine();
-                } catch (IOException e) {
-                    System.err.println("Erreur de lecture : " + e.getMessage());
-                    continue;
-                }
+                String choix = lireTexte(""); // Lecture sécurisée
 
                 try {
                     switch (choix) {
@@ -65,13 +51,11 @@ public class ConsoleApp {
                             modifierAnimalInterface(service);
                             break;
                         case "4":
-                            System.out.print("Nom du fichier de sauvegarde (ex: backup.ser) : ");
-                            String fSave = br.readLine();
+                            String fSave = lireTexte("Nom du fichier de sauvegarde : ");
                             service.sauvegarderCacheSurDisque(fSave);
                             break;
                         case "5":
-                            System.out.print("Nom du fichier à charger : ");
-                            String fLoad = br.readLine();
+                            String fLoad = lireTexte("Nom du fichier à charger : ");
                             service.chargerCacheDepuisDisque(fLoad);
                             break;
                         case "6":
@@ -85,16 +69,11 @@ public class ConsoleApp {
                     System.err.println(">>> ERREUR MÉTIER : " + e.getMessage());
                 } catch (SQLException e) {
                     System.err.println(">>> ERREUR SQL : " + e.getMessage());
-                } catch (IOException e) {
-                    System.err.println(">>> ERREUR E/S : " + e.getMessage());
-                } catch (NumberFormatException e) {
-                    System.err.println(">>> ERREUR FORMAT : Veuillez entrer un nombre valide.");
                 } catch (Exception e) {
-                    System.err.println(">>> ERREUR INATTENDUE : " + e.getMessage());
+                    System.err.println(">>> ERREUR : " + e.getMessage());
                     e.printStackTrace();
                 }
             }
-
         } finally {
             Connexion.close();
         }
@@ -103,89 +82,145 @@ public class ConsoleApp {
     private static void afficherMenu() {
         System.out.println("\n---------------- MENU PRINCIPAL ----------------");
         System.out.println("1. Afficher les animaux (BDD)");
-        System.out.println("2. Ajouter un nouvel animal");
-        System.out.println("3. Modifier un animal (Update)");
-        System.out.println("4. SAUVEGARDER la session (Sérialisation)");
-        System.out.println("5. CHARGER une session");
+        System.out.println("2. Ajouter un nouvel animal (Complet)");
+        System.out.println("3. Modifier un animal");
+        System.out.println("4. SAUVEGARDER");
+        System.out.println("5. CHARGER");
         System.out.println("6. Quitter");
         System.out.print("Votre choix > ");
     }
 
+    // --- INTERFACE AJOUT ---
     private static void ajouterAnimalInterface(SpaService service) throws SpaException, SQLException, IOException {
         System.out.println("\n--- Ajout d'un Animal ---");
+        System.out.println("(Appuyez sur Entrée pour ignorer un champ facultatif)");
 
-        System.out.print("Nom : ");
-        String nom = br.readLine();
+        String nom = lireTexte("Nom : ");
+        String type = lireTexte("Type (Chien/Chat) : ");
+        String num = lireTexte("Numéro d'identification : ");
+        String race = lireTexte("Race : ");
 
-        System.out.print("Type (Chien/Chat) : ");
-        String type = br.readLine();
+        // Si vide, renvoie 0
+        int annee = lireEntier("Année de naissance (YYYY) : ");
 
-        System.out.print("Numéro d'identification (Puce/Tatouage) : ");
-        String num = br.readLine();
+        // Si vide, renvoie null
+        Date dateArrivee = lireDate("Date d'arrivée (YYYY-MM-DD) : ");
 
-        System.out.print("Race : ");
-        String race = br.readLine();
+        String statut = lireTexte("Statut (En attente/Adopte...) : ");
 
-        System.out.print("Année de naissance (YYYY) : ");
-        int annee = Integer.parseInt(br.readLine());
+        // Création de l'objet de base
+        Animal a = new Animal(nom, type, num, race, annee, dateArrivee, statut);
 
-        System.out.print("Date d'arrivée (format YYYY-MM-DD) : ");
-        String dateStr = br.readLine();
-        Date dateArrivee;
-        try {
-            dateArrivee = Date.valueOf(dateStr);
-        } catch (IllegalArgumentException e) {
-            throw new SpaException("Format de date invalide. Utilisez YYYY-MM-DD.") {};
-        }
+        // Ajout des informations complémentaires (Booléens)
+        a.setOkHumains(lireBooleen("OK Humains ? (O/N) : "));
+        a.setOkChiens(lireBooleen("OK Chiens ? (O/N) : "));
+        a.setOkChats(lireBooleen("OK Chats ? (O/N) : "));
+        a.setOkBebes(lireBooleen("OK Bébés ? (O/N) : "));
 
-        System.out.print("Statut (En attente/Adopte/Non adoptable) : ");
-        String statut = br.readLine();
+        // ID Famille (FK)
+        Integer idFam = lireEntierObjet("ID Famille d'origine (si connue) : ");
+        a.setIdFamilleOrigine(idFam);
 
-        // Création et ajout
-        Animal nouvelAnimal = new Animal(nom, type, num, race, annee, dateArrivee, statut);
-        service.ajouterAnimal(nouvelAnimal);
+        service.ajouterAnimal(a);
     }
 
+    // --- INTERFACE MODIFICATION ---
     private static void modifierAnimalInterface(SpaService service) throws SpaException, SQLException, IOException {
         System.out.println("\n--- Modification d'un Animal ---");
 
-        System.out.print("Entrez l'ID de l'animal à modifier : ");
-        String idStr = br.readLine();
-        if (idStr.isEmpty()) return;
+        int id = lireEntier("ID de l'animal à modifier : ");
+        Animal a = service.recupererAnimal(id); // Récupère l'existant
 
-        int id = Integer.parseInt(idStr);
+        System.out.println("Modification de : " + a.getNom());
+        System.out.println("(Laissez vide pour ne pas changer la valeur actuelle)");
 
-        // On récupère l'animal (si pas trouvé, une Exception sera levée par le service)
-        Animal animal = service.recupererAnimal(id);
+        // On propose chaque champ. Si l'utilisateur tape quelque chose, on modifie.
 
-        System.out.println("Modification de : " + animal.getNom() + " (" + animal.getTypeAnimal() + ")");
-        System.out.println("(Laissez vide et appuyez sur Entrée pour ne pas changer la valeur)");
+        String saisie = lireTexte("Nom [" + a.getNom() + "] : ");
+        if (!saisie.isEmpty()) a.setNom(saisie);
 
-        // --- Début des modifications ---
+        saisie = lireTexte("Type [" + a.getTypeAnimal() + "] : ");
+        if (!saisie.isEmpty()) a.setTypeAnimal(saisie);
 
-        System.out.print("Nom [" + animal.getNom() + "] : ");
-        String saisie = br.readLine();
-        if (!saisie.isEmpty()) animal.setNom(saisie);
+        saisie = lireTexte("Race [" + a.getRace() + "] : ");
+        if (!saisie.isEmpty()) a.setRace(saisie);
 
-        System.out.print("Type [" + animal.getTypeAnimal() + "] : ");
-        saisie = br.readLine();
-        if (!saisie.isEmpty()) animal.setTypeAnimal(saisie);
+        // Pour les entiers, c'est plus délicat, il faut vérifier si la saisie n'est pas vide
+        Integer nouvelleAnnee = lireEntierObjet("Année Naissance [" + a.getAnneeNaissance() + "] : ");
+        if (nouvelleAnnee != null) a.setAnneeNaissance(nouvelleAnnee);
 
-        System.out.print("Race [" + animal.getRace() + "] : ");
-        saisie = br.readLine();
-        if (!saisie.isEmpty()) animal.setRace(saisie);
+        Date nouvelleDate = lireDate("Date Arrivée [" + a.getDateArrivee() + "] : ");
+        if (nouvelleDate != null) a.setDateArrivee(nouvelleDate);
 
-        System.out.print("Statut [" + animal.getStatut() + "] : ");
-        saisie = br.readLine();
-        if (!saisie.isEmpty()) animal.setStatut(saisie);
+        // Modification des booléens
+        // Astuce : On affiche la valeur actuelle (true/false/null)
+        Boolean okH = lireBooleen("OK Humains [" + a.getOkHumains() + "] (O/N) : ");
+        if (okH != null) a.setOkHumains(okH); // Note : ici on ne peut pas remettre à null facilement avec cette logique simple, mais c'est acceptable.
 
-        System.out.print("Année Naissance [" + animal.getAnneeNaissance() + "] : ");
-        saisie = br.readLine();
-        if (!saisie.isEmpty()) {
-            animal.setAnneeNaissance(Integer.parseInt(saisie));
+        Boolean okC = lireBooleen("OK Chiens [" + a.getOkChiens() + "] (O/N) : ");
+        if (okC != null) a.setOkChiens(okC);
+
+        Boolean okCh = lireBooleen("OK Chats [" + a.getOkChats() + "] (O/N) : ");
+        if (okCh != null) a.setOkChats(okCh);
+
+        service.modifierAnimal(a);
+    }
+
+    // ==========================================================
+    // MÉTHODES UTILITAIRES (Pour ne pas répéter les try/catch)
+    // ==========================================================
+
+    /** Lit une chaine de caractères. */
+    private static String lireTexte(String prompt) {
+        System.out.print(prompt);
+        try {
+            return br.readLine().trim();
+        } catch (IOException e) {
+            return "";
         }
+    }
 
-        // --- Application de la mise à jour ---
-        service.modifierAnimal(animal);
+    /** Lit un int primitif (renvoie 0 si vide). */
+    private static int lireEntier(String prompt) {
+        String s = lireTexte(prompt);
+        if (s.isEmpty()) return 0;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            System.out.println(">> Ce n'est pas un nombre valide. Valeur 0 utilisée.");
+            return 0;
+        }
+    }
+
+    /** Lit un Integer objet (renvoie null si vide). */
+    private static Integer lireEntierObjet(String prompt) {
+        String s = lireTexte(prompt);
+        if (s.isEmpty()) return null;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Lit une Date SQL (renvoie null si vide ou invalide). */
+    private static Date lireDate(String prompt) {
+        String s = lireTexte(prompt);
+        if (s.isEmpty()) return null;
+        try {
+            return Date.valueOf(s); // Format YYYY-MM-DD
+        } catch (IllegalArgumentException e) {
+            System.out.println(">> Date invalide. Ignorée.");
+            return null;
+        }
+    }
+
+    /** Lit un Oui/Non et renvoie un Boolean (null si vide). */
+    private static Boolean lireBooleen(String prompt) {
+        String s = lireTexte(prompt).toLowerCase();
+        if (s.isEmpty()) return null; // Inconnu
+        if (s.startsWith("o") || s.startsWith("y")) return true; // Oui / Yes
+        if (s.startsWith("n")) return false; // Non
+        return null; // Autre chose -> Inconnu
     }
 }
