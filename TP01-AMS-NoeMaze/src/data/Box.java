@@ -1,48 +1,49 @@
 package data;
 
 public class Box extends Entity {
-    private String nom_box;
-    private double surface;
-    private Boolean interieur; // Est-ce un box intérieur ?
-    private String type_animal_autorise; // 'Chien', 'Chat'
+    private String nom_reference;
+    private String localisation;
+    private String type_animal;
+    private int capacite_max;
 
-
-
-    public Box(String nom_box, double surface, Boolean interieur, String type_animal_autorise) {
+    public Box(String nom_reference, String localisation, String type_animal, int capacite_max) {
         super();
-        this.nom_box = nom_box;
-        this.surface = surface;
-        this.interieur = interieur;
-        this.type_animal_autorise = type_animal_autorise;
+        this.nom_reference = nom_reference;
+        this.localisation = localisation;
+        this.type_animal = type_animal;
+        this.capacite_max = capacite_max;
     }
 
+    // --- Getters & Setters ---
+    public String getNomReference() { return nom_reference; }
+    public void setNomReference(String nom) { this.nom_reference = nom; }
 
-    public String getNomBox() { return nom_box; }
-    public void setNomBox(String nom) { this.nom_box = nom; }
+    public String getLocalisation() { return localisation; }
+    public void setLocalisation(String loc) { this.localisation = loc; }
 
-    public double getSurface() { return surface; }
-    public void setSurface(double surface) { this.surface = surface; }
+    public String getTypeAnimal() { return type_animal; }
+    public void setTypeAnimal(String type) { this.type_animal = type; }
 
-    public Boolean getInterieur() { return interieur; }
-    public void setInterieur(Boolean interieur) { this.interieur = interieur; }
-
-    public String getTypeAnimalAutorise() { return type_animal_autorise; }
-    public void setTypeAnimalAutorise(String type) { this.type_animal_autorise = type; }
+    public int getCapaciteMax() { return capacite_max; }
+    public void setCapaciteMax(int cap) { this.capacite_max = cap; }
 
     @Override
     public String toString() {
-        return "Box [ID=" + id + ", Nom=" + nom_box + " (" + type_animal_autorise + ")]";
+        return "Box [ID=" + id + ", Ref=" + nom_reference + ", Cap=" + capacite_max + "]";
     }
 
-
+    // --- Mapping SQL ---
     @Override
     public void getStruct() {
-        map.put("nom_box", fieldType.VARCHAR);
-        map.put("surface", fieldType.FLOAT8);
-        map.put("interieur", fieldType.BOOL);
-        map.put("type_animal_autorise", fieldType.VARCHAR);
+        map.put("nom_reference", fieldType.VARCHAR);
+        map.put("localisation", fieldType.VARCHAR);
+        map.put("type_animal", fieldType.VARCHAR);
+        map.put("capacite_max", fieldType.INT4);
 
-        this.values = "('" + nom_box + "', " + surface + ", " + interieur + ", '" + type_animal_autorise + "')";
+        String locVal = (localisation == null) ? "null" : "'" + localisation + "'";
+        String nomVal = (nom_reference == null) ? "null" : "'" + nom_reference + "'";
+
+        this.values = "(" + nomVal + ", " + locVal + ", '" + type_animal + "', " + capacite_max + ")";
     }
 
     @Override
@@ -52,9 +53,12 @@ public class Box extends Entity {
 
     @Override
     public String getUpdateClause() {
-        return "nom_box='" + nom_box + "', " +
-                "surface=" + surface + ", " +
-                "interieur=" + interieur + ", " +
-                "type_animal_autorise='" + type_animal_autorise + "'";
+        String locVal = (localisation == null) ? "null" : "'" + localisation + "'";
+        String nomVal = (nom_reference == null) ? "null" : "'" + nom_reference + "'";
+
+        return "nom_reference=" + nomVal + ", " +
+                "localisation=" + locVal + ", " +
+                "type_animal='" + type_animal + "', " +
+                "capacite_max=" + capacite_max;
     }
 }

@@ -71,23 +71,43 @@ public class Gestion {
      * Méthode générique pour insérer n'importe quelle entité Animal, Box, etc...
      */
     public void insert(Entity data, String table) throws SQLException {
-        data.getStruct();
-        HashMap<String, fieldType> tableStruct = structTable(table, false);
-        if (!data.check(tableStruct)) {
-            throw new SQLException("Erreur : La structure de l'objet Java ne correspond pas à la table SQL '" + table + "'.");
-        }
+        data.getStruct(); // Remplit la map Java
+        HashMap<String, fieldType> tableStruct = structTable(table, false); // Récupère la map SQL
 
+        // --- DÉBUT DU BLOC DE DÉBOGAGE ---
+        if (!data.check(tableStruct)) {
+            // On cherche manuellement l'erreur pour l'afficher à l'utilisateur
+            System.err.println(">>> DÉTAIL DE L'ERREUR DE STRUCTURE pour la table '" + table + "' <<<");
+
+            for (String key : data.getMap().keySet()) {
+                // 1. Vérifier si la colonne existe
+                if (!tableStruct.containsKey(key)) {
+                    System.err.println("   [ERREUR] La colonne Java '" + key + "' n'existe pas dans la table SQL.");
+                    continue;
+                }
+                // 2. Vérifier si le type correspond
+                fieldType typeJava = data.getMap().get(key);
+                fieldType typeSQL = tableStruct.get(key);
+
+                if (typeJava != typeSQL) {
+                    System.err.println("   [ERREUR] Colonne '" + key + "' : Java attend " + typeJava + " mais SQL est " + typeSQL);
+                } else {
+                    System.out.println("   [OK] " + key + " (" + typeJava + ")");
+                }
+            }
+            throw new SQLException("Erreur : La structure de l'objet Java ne correspond pas à la table SQL '" + table + "'. (Voir détails ci-dessus)");
+        }
+        // --- FIN DU BLOC DE DÉBOGAGE ---
 
         String valuesPart = data.getValues();
         if (valuesPart.startsWith("(")) {
-            valuesPart = valuesPart.substring(1); // Retire le '('
+            valuesPart = valuesPart.substring(1);
         }
 
         String query = "INSERT INTO " + table + " VALUES (DEFAULT, " + valuesPart;
 
         try (PreparedStatement pstmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             int affectedRows = pstmt.executeUpdate();
-
             if (affectedRows > 0) {
                 try (ResultSet keys = pstmt.getGeneratedKeys()) {
                     if (keys.next()) {
@@ -97,6 +117,7 @@ public class Gestion {
             }
         }
     }
+
 
     /**
      * Méthode utilitaire pour exécuter une requête SQL simple : UPDATE, DELETE...
