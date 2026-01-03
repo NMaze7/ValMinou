@@ -7,10 +7,7 @@ import java.sql.Connection;
 import java.sql.Date;
 import java.sql.SQLException;
 
-import data.Animal;
-import data.Box;
-import data.Famille;
-import data.Gestion;
+import data.*;
 import db.Connexion;
 import metier.SpaService;
 import exception.SpaException;
@@ -57,16 +54,27 @@ public class ConsoleApp {
                         case "6": service.afficherTousLesBoxes(); break;
                         case "7": ajouterBoxInterface(service); break;
 
+                        //benevoles
+                        case "8": service.afficherTousLesBenevoles(); break;
+                        case "9": ajouterBenevoleInterface(service); break;
+
+                        // --- MOUVEMENTS ---
+                        case "10":
+                            int idAnim = lireEntier("ID de l'animal pour voir son historique : ");
+                            service.afficherHistoriqueAnimal(idAnim);
+                            break;
+                        case "11": ajouterHistoriqueInterface(service); break;
+
                         // --- SYSTÈME ---
-                        case "8":
+                        case "12":
                             String fSave = lireTexte("Nom du fichier de sauvegarde : ");
                             service.sauvegarderCacheSurDisque(fSave);
                             break;
-                        case "9":
+                        case "13":
                             String fLoad = lireTexte("Nom du fichier à charger : ");
                             service.chargerCacheDepuisDisque(fLoad);
                             break;
-                        case "10":
+                        case "14":
                         case "q":
                             System.out.println("Au revoir !");
                             running = false;
@@ -100,10 +108,16 @@ public class ConsoleApp {
         System.out.println("--- BOXES ---");
         System.out.println("6. Afficher les boxes");
         System.out.println("7. Ajouter un box");
+        System.out.println("--- BENEVOLES ---");
+        System.out.println("8. Afficher les bénévoles");
+        System.out.println("9. Ajouter un bénévole");
+        System.out.println("--- Historiques ---");
+        System.out.println("10. historique animal");
+        System.out.println("11. ajouter une historique animal");
         System.out.println("--- SYSTEME ---");
-        System.out.println("8. SAUVEGARDER session");
-        System.out.println("9. CHARGER session");
-        System.out.println("10. Quitter");
+        System.out.println("12. SAUVEGARDER session");
+        System.out.println("13. CHARGER session");
+        System.out.println("14. Quitter");
         System.out.print("Votre choix > ");
     }
 
@@ -192,6 +206,67 @@ public class ConsoleApp {
 
         Box b = new Box(ref, loc, type, cap);
         service.ajouterBox(b);
+    }
+
+
+    private static void ajouterBenevoleInterface(SpaService service) throws SpaException, SQLException, IOException {
+        System.out.println("\n--- Ajout d'un Bénévole ---");
+
+        String nom = lireTexte("Nom : ");
+        String prenom = lireTexte("Prénom : ");
+        String tel = lireTexte("Téléphone : ");
+        String adresse = lireTexte("Adresse : ");
+        String role = lireTexte("Rôle (laisser vide pour 'Benevole') : ");
+
+        Benevole b = new Benevole(nom, prenom, tel, adresse, role);
+        service.ajouterBenevole(b);
+    }
+
+
+
+    private static void ajouterHistoriqueInterface(SpaService service) throws SpaException, SQLException, IOException {
+        System.out.println("\n--- Nouveau Mouvement (Déplacement) ---");
+
+        int idAnimal = lireEntier("ID de l'animal à déplacer : ");
+        // Vérif rapide si l'animal existe
+        Animal a = service.recupererAnimal(idAnimal);
+        System.out.println("Déplacement de : " + a.getNom());
+
+        System.out.println("Destination ?");
+        System.out.println("1. Box");
+        System.out.println("2. Famille d'accueil");
+        String choixDest = lireTexte("Choix (1 ou 2) : ");
+
+        String typeEmplacement = "";
+        Integer idBox = null;
+        Integer idFam = null;
+
+        if (choixDest.equals("1")) {
+            typeEmplacement = "Box";
+            idBox = lireEntier("ID du Box de destination : ");
+            // On pourrait vérifier si le box existe ici via service.recupererBox(idBox)
+        } else if (choixDest.equals("2")) {
+            typeEmplacement = "Famille";
+            idFam = lireEntier("ID de la Famille : ");
+        } else {
+            System.out.println("Choix invalide. Annulation.");
+            return;
+        }
+
+        Date dateDebut = lireDate("Date de début (YYYY-MM-DD) : ");
+        if (dateDebut == null) {
+            System.out.println("Date obligatoire !");
+            return;
+        }
+
+        String comm = lireTexte("Commentaire (facultatif) : ");
+
+        // Par défaut date_fin est null (mouvement en cours)
+        HistoriqueEmplacement h = new HistoriqueEmplacement(
+                idAnimal, typeEmplacement, idBox, idFam, dateDebut, null, comm
+        );
+
+        service.ajouterHistorique(h);
     }
 
     // ==========================================================
