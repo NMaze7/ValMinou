@@ -21,8 +21,12 @@ public class SpaService {
     private List<Animal> cacheAnimaux;
     private List<Famille> cacheFamilles;
     private List<Box> cacheBoxes;
-    private List<Benevole> cacheBenevoles;            // Nouveau
-    private List<HistoriqueEmplacement> cacheHistorique; // Nouveau
+    private List<Benevole> cacheBenevoles;
+    private List<HistoriqueEmplacement> cacheHistorique;
+    private List<PrescriptionSoin> cacheSoins;
+    private List<TypeActivite> cacheTypesActivite;
+    private List<Creneau> cacheCreneaux;
+    private List<PlanningActivite> cachePlannings;
 
     public SpaService(Gestion gestion) {
         this.gestion = gestion;
@@ -31,6 +35,10 @@ public class SpaService {
         this.cacheBoxes = new ArrayList<>();
         this.cacheBenevoles = new ArrayList<>();
         this.cacheHistorique = new ArrayList<>();
+        this.cacheSoins = new ArrayList<>();
+        this.cacheTypesActivite = new ArrayList<>();
+        this.cacheCreneaux = new ArrayList<>();
+        this.cachePlannings = new ArrayList<>();
     }
 
     /**
@@ -42,6 +50,10 @@ public class SpaService {
         chargerBoxes();
         chargerBenevoles();
         chargerHistorique();
+        chargerSoins();
+        chargerTypesActivite();
+        chargerCreneaux();
+        chargerPlannings();
     }
 
     // ==========================================================
@@ -156,6 +168,72 @@ public class SpaService {
         }
         rs.close();
         System.out.println("[Info] " + cacheHistorique.size() + " historiques chargés.");
+    }
+
+
+    private void chargerSoins() throws SQLException {
+        cacheSoins.clear();
+        ResultSet rs = gestion.select("SELECT * FROM prescription_soin");
+        while (rs.next()) {
+            PrescriptionSoin s = new PrescriptionSoin(
+                    rs.getInt("id_animal"),
+                    rs.getString("description_soin"),
+                    rs.getString("frequence"),
+                    rs.getDate("date_fin_traitement")
+            );
+            s.setId(rs.getInt("id_soin"));
+            cacheSoins.add(s);
+        }
+        rs.close();
+        System.out.println("[Info] " + cacheSoins.size() + " prescriptions chargées.");
+    }
+
+
+
+    private void chargerTypesActivite() throws SQLException {
+        cacheTypesActivite.clear();
+        ResultSet rs = gestion.select("SELECT * FROM type_activite");
+        while (rs.next()) {
+            TypeActivite t = new TypeActivite(rs.getString("libelle"));
+            t.setId(rs.getInt("id_type_activite"));
+            cacheTypesActivite.add(t);
+        }
+        rs.close();
+    }
+
+    private void chargerCreneaux() throws SQLException {
+        cacheCreneaux.clear();
+        ResultSet rs = gestion.select("SELECT * FROM creneau");
+        while (rs.next()) {
+            Creneau c = new Creneau(
+                    rs.getDate("date_creneau"),
+                    rs.getTime("heure_debut"),
+                    rs.getTime("heure_fin"),
+                    rs.getInt("nb_benevoles_min"),
+                    rs.getBoolean("est_semaine_type")
+            );
+            c.setId(rs.getInt("id_creneau"));
+            cacheCreneaux.add(c);
+        }
+        rs.close();
+    }
+
+    private void chargerPlannings() throws SQLException {
+        cachePlannings.clear();
+        ResultSet rs = gestion.select("SELECT * FROM planning_activite");
+        while (rs.next()) {
+            Integer idBen = rs.getInt("id_benevole");
+            if (rs.wasNull()) idBen = null;
+
+            PlanningActivite p = new PlanningActivite(
+                    rs.getInt("id_creneau"),
+                    idBen,
+                    rs.getInt("id_type_activite")
+            );
+            p.setId(rs.getInt("id_planning"));
+            cachePlannings.add(p);
+        }
+        rs.close();
     }
 
     // ==========================================================
@@ -288,6 +366,36 @@ public class SpaService {
         if (!trouve) System.out.println("Aucun mouvement trouvé.");
     }
 
+
+    public void ajouterSoin(PrescriptionSoin soin) throws SpaException, SQLException {
+        // Vérifie que l'animal existe
+        recupererAnimal(soin.getIdAnimal());
+
+        if (soin.getDescriptionSoin() == null || soin.getDescriptionSoin().isEmpty()) {
+            throw new DonneeInvalideExceptions("La description du soin est obligatoire.");
+        }
+
+        gestion.insert(soin, "prescription_soin");
+        cacheSoins.add(soin);
+        System.out.println("[Succès] Prescription ajoutée.");
+    }
+
+    public void afficherSoinsAnimal(int idAnimal) {
+        System.out.println("--- Carnet de Santé (Animal ID " + idAnimal + " ) ---");
+        boolean trouve = false;
+        for (PrescriptionSoin s : cacheSoins) {
+            if (s.getIdAnimal() == idAnimal) {
+                String fin = (s.getDateFinTraitement() == null) ? "Illimité" : s.getDateFinTraitement().toString();
+                String freq = (s.getFrequence() == null) ? "Non précisée" : s.getFrequence();
+
+                System.out.println("- " + s.getDescriptionSoin());
+                System.out.println("  Fréquence : " + freq + " | Fin : " + fin);
+                trouve = true;
+            }
+        }
+        if (!trouve) System.out.println("Aucun soin enregistré.");
+    }
+
     // ==========================================================
     // SAUVEGARDE ET CHARGEMENT (Sérialisation)
     // ==========================================================
@@ -299,6 +407,7 @@ public class SpaService {
             oos.writeObject(cacheBoxes);
             oos.writeObject(cacheBenevoles);
             oos.writeObject(cacheHistorique);
+            oos.writeObject(cacheSoins);
             System.out.println("Sauvegarde effectuée dans " + nomFichier);
         } catch (IOException e) {
             System.err.println("Erreur sauvegarde : " + e.getMessage());
@@ -319,6 +428,7 @@ public class SpaService {
             this.cacheBoxes = (List<Box>) ois.readObject();
             this.cacheBenevoles = (List<Benevole>) ois.readObject();
             this.cacheHistorique = (List<HistoriqueEmplacement>) ois.readObject();
+            this.cacheSoins = (List<PrescriptionSoin>) ois.readObject();
 
             System.out.println("Données rechargées !");
             System.out.println("- Animaux : " + cacheAnimaux.size());
@@ -330,4 +440,57 @@ public class SpaService {
             System.err.println("Erreur chargement : " + e.getMessage());
         }
     }
+
+    public void ajouterTypeActivite(TypeActivite t) throws SQLException {
+        gestion.insert(t, "type_activite");
+        cacheTypesActivite.add(t);
+    }
+
+    public void afficherTypesActivite() {
+        for(TypeActivite t : cacheTypesActivite) System.out.println(t);
+    }
+
+    public void ajouterCreneau(Creneau c) throws SQLException {
+        gestion.insert(c, "creneau");
+        cacheCreneaux.add(c);
+        System.out.println("Créneau créé ID: " + c.getId());
+    }
+
+    public void planifierActivite(PlanningActivite p) throws SQLException {
+        // Vérifs basiques
+        boolean creneauExiste = cacheCreneaux.stream().anyMatch(c -> c.getId() == p.getIdCreneau());
+        if(!creneauExiste) throw new SQLException("Créneau introuvable");
+
+        gestion.insert(p, "planning_activite");
+        cachePlannings.add(p);
+        System.out.println("Activité planifiée ID: " + p.getId());
+    }
+
+    /**
+     * Méthode spéciale pour la table de liaison Many-to-Many.
+     * On utilise du SQL brut car pas de clé primaire simple.
+     */
+    public void ajouterAnimalAuPlanning(int idPlanning, int idAnimal) throws SQLException, SpaException {
+        recupererAnimal(idAnimal); // Lève une exception si pas trouvé
+        String sql = "INSERT INTO participation_animal_activite (id_planning, id_animal) " +
+                "VALUES (" + idPlanning + ", " + idAnimal + ")";
+        gestion.execute(sql);
+        System.out.println("Animal ajouté à l'activité !");
+    }
+
+    public void afficherPlanningComplet() {
+        System.out.println("--- PLANNING ---");
+        for (PlanningActivite p : cachePlannings) {
+            // On retrouve les infos liées pour l'affichage (Jointure en mémoire)
+            String activite = "Inconnue";
+            for(TypeActivite t : cacheTypesActivite) if(t.getId() == p.getIdTypeActivite()) activite = t.getLibelle();
+
+            String date = "Inconnue";
+            for(Creneau c : cacheCreneaux) if(c.getId() == p.getIdCreneau()) date = c.getDateCreneau().toString();
+
+            System.out.println("Plan #" + p.getId() + " : " + activite + " le " + date +
+                    " (Bénévole: " + p.getIdBenevole() + ")");
+        }
+    }
+
 }
